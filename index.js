@@ -1,34 +1,58 @@
 const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys");
 const P = require("pino");
 
-async function start() {
-    const { state, saveCreds } = await useMultiFileAuthState("./auth");
+async function startBot() {
+    try {
+        console.log("BOT STARTING...");
 
-    const sock = makeWASocket({
-        auth: state,
-        logger: P({ level: "silent" }),
-        printQRInTerminal: true
-    });
+        const { state, saveCreds } = await useMultiFileAuthState("./auth");
 
-    sock.ev.on("creds.update", saveCreds);
+        const sock = makeWASocket({
+            auth: state,
+            logger: P({ level: "silent" }),
+            printQRInTerminal: true
+        });
 
-    sock.ev.on("messages.upsert", async ({ messages }) => {
-        const msg = messages[0];
-        if (!msg.message) return;
+        sock.ev.on("creds.update", saveCreds);
 
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
-        const sender = msg.key.remoteJid;
+        sock.ev.on("connection.update", (update) => {
+            const { connection } = update;
 
-        if (!text) return;
+            if (connection === "open") {
+                console.log("BOT ONLINE ✅");
+            }
 
-        if (text === "/admin") {
-            await sock.sendMessage(sender, { text: "👑 Admin: Sən" });
-        }
+            if (connection === "close") {
+                console.log("BOT CLOSED ❌ RESTARTING...");
+                startBot();
+            }
+        });
 
-        if (text === "/info") {
-            await sock.sendMessage(sender, { text: "🤖 Bot işləyir" });
-        }
-    });
+        sock.ev.on("messages.upsert", async ({ messages }) => {
+            const msg = messages[0];
+            if (!msg.message) return;
+
+            const text =
+                msg.message.conversation ||
+                msg.message.extendedTextMessage?.text;
+
+            const sender = msg.key.remoteJid;
+
+            if (!text) return;
+
+            if (text === "/admin") {
+                await sock.sendMessage(sender, { text: "👑 Admin: Miri" });
+            }
+
+            if (text === "/info") {
+                await sock.sendMessage(sender, { text: "🤖 Bot işləyir" });
+            }
+        });
+
+    } catch (err) {
+        console.log("ERROR:", err);
+        setTimeout(startBot, 5000);
+    }
 }
 
-start();
+startBot();
